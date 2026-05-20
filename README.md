@@ -26,6 +26,18 @@ npm run dev
 
 Abra <http://localhost:3000>.
 
+## Configurando o Firebase
+
+1. Crie um projeto em <https://console.firebase.google.com>.
+2. Em **Build → Authentication → Sign-in method**, habilite **Email/Password**.
+3. Em **Build → Firestore Database**, crie o banco no modo **production** (as regras de
+   segurança virão na Etapa 10).
+4. Em **Project settings → General → Your apps**, registre um **app Web** e copie as
+   chaves do `firebaseConfig`.
+5. Cole as chaves em `.env.local` seguindo o mapeamento de `.env.example`.
+
 ## Variáveis de ambiente
 
-Veja `.env.example`. Todas as chaves Firebase Web são `NEXT_PUBLIC_*` (executam no cliente).
+Veja `.env.example`. Todas as chaves Firebase Web são `NEXT_PUBLIC_*` (executam no
+cliente — esse é o comportamento esperado do Firebase Web SDK; a proteção real fica nas
+regras do Firestore).
