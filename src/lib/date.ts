@@ -34,3 +34,19 @@ export function formatDateTimeLocal(d: Date): string {
 export function formatTime(d: Date): string {
   return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
+
+export function formatDateShort(d: Date): string {
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+}
+
+export function formatDateTimeShort(d: Date): string {
+  return `${formatDateShort(d)} às ${formatTime(d)}`;
+}
+
+export function formatDurationMinutes(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m} min`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}min`;
+}

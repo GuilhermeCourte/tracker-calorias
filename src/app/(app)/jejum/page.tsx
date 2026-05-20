@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { endFast, getActiveFast, startFast } from "@/lib/firestore/fasts";
+import { endFast, getActiveFast, listCompletedFasts, startFast } from "@/lib/firestore/fasts";
 import {
   FAST_PRESET_MINUTES,
   FAST_TYPES,
@@ -35,6 +35,7 @@ import {
   type Fast,
   type StartFastFormValues,
 } from "@/lib/schemas/fast";
+import { HistoryList } from "@/components/fasts/HistoryList";
 
 type PageState =
   | { kind: "loading" }
@@ -45,16 +46,35 @@ type PageState =
 export default function JejumPage() {
   const { user } = useAuth();
   const [state, setState] = useState<PageState>({ kind: "loading" });
+  const [history, setHistory] = useState<Fast[] | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     if (!user) return;
     setState({ kind: "loading" });
-    try {
-      const active = await getActiveFast();
+    setHistory(null);
+    setHistoryError(null);
+
+    const [activeResult, historyResult] = await Promise.allSettled([
+      getActiveFast(),
+      listCompletedFasts(),
+    ]);
+
+    if (activeResult.status === "fulfilled") {
+      const active = activeResult.value;
       setState(active ? { kind: "active", fast: active } : { kind: "idle" });
-    } catch (err) {
-      console.error(err);
+    } else {
+      console.error(activeResult.reason);
       setState({ kind: "error", message: "Não foi possível carregar o jejum." });
+    }
+
+    if (historyResult.status === "fulfilled") {
+      setHistory(historyResult.value);
+    } else {
+      console.error(historyResult.reason);
+      setHistoryError(
+        "Não foi possível carregar o histórico. Se for a primeira vez, o Firestore pode pedir um índice composto — o console do navegador traz o link pra criar.",
+      );
     }
   }, [user]);
 
@@ -63,7 +83,7 @@ export default function JejumPage() {
   }, [reload]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <header className="space-y-1">
         <p className="text-sm text-muted-foreground">Acompanhe seus ciclos de jejum</p>
         <h1 className="text-3xl font-bold tracking-tight">Jejum</h1>
@@ -82,6 +102,8 @@ export default function JejumPage() {
       )}
       {state.kind === "active" && <ActiveFastCard fast={state.fast} onChanged={reload} />}
       {state.kind === "idle" && <StartFastCard onStarted={reload} />}
+
+      <HistoryList fasts={history} error={historyError} onRetry={reload} />
     </div>
   );
 }
