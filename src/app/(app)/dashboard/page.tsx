@@ -1,16 +1,14 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { BarChart3, Target, Timer } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { GoalProgress } from "@/components/dashboard/GoalProgress";
+import { listMealsByDate } from "@/lib/firestore/meals";
+import { getDailyCalorieGoal } from "@/lib/firestore/user";
 
 const PLACEHOLDERS = [
-  {
-    icon: Target,
-    title: "Meta diária",
-    description: "Defina sua meta calórica e acompanhe o consumo do dia.",
-    hint: "Em breve · Etapa 6",
-  },
   {
     icon: Timer,
     title: "Jejum atual",
@@ -27,6 +25,35 @@ const PLACEHOLDERS = [
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const [goal, setGoal] = useState<number | null | "loading">("loading");
+  const [consumed, setConsumed] = useState<number | "loading">("loading");
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    Promise.all([
+      getDailyCalorieGoal(),
+      listMealsByDate(new Date()).then((meals) =>
+        meals.reduce((sum, m) => sum + m.calories, 0),
+      ),
+    ])
+      .then(([g, c]) => {
+        if (cancelled) return;
+        setGoal(g);
+        setConsumed(c);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error(err);
+        setGoal(null);
+        setConsumed(0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  const ready = goal !== "loading" && consumed !== "loading";
 
   return (
     <div className="space-y-8">
@@ -36,6 +63,24 @@ export default function DashboardPage() {
       </header>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {ready ? (
+          <GoalProgress consumed={consumed} goal={goal} />
+        ) : (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <span className="flex size-9 items-center justify-center rounded-full bg-brand-soft text-brand-foreground">
+                  <Target className="size-4" />
+                </span>
+                <CardTitle>Meta diária</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">Carregando…</p>
+            </CardContent>
+          </Card>
+        )}
+
         {PLACEHOLDERS.map(({ icon: Icon, title, description, hint }) => (
           <Card key={title}>
             <CardHeader>
