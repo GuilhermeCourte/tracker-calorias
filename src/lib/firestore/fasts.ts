@@ -86,3 +86,15 @@ export async function listCompletedFasts(): Promise<Fast[]> {
   const snap = await getDocs(q);
   return snap.docs.map(toFast);
 }
+
+export async function listCompletedFastsInRange(start: Date, end: Date): Promise<Fast[]> {
+  const uid = requireUid();
+  const q = query(
+    fastsCol(uid),
+    where("endAt", ">=", Timestamp.fromDate(start)),
+    where("endAt", "<=", Timestamp.fromDate(end)),
+    orderBy("endAt", "desc"),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(toFast);
+}

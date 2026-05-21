@@ -53,6 +53,18 @@ export async function listMealsByDate(date: Date): Promise<Meal[]> {
   return snap.docs.map(toMeal);
 }
 
+export async function listMealsInRange(start: Date, end: Date): Promise<Meal[]> {
+  const uid = requireUid();
+  const q = query(
+    mealsCol(uid),
+    where("datetime", ">=", Timestamp.fromDate(start)),
+    where("datetime", "<=", Timestamp.fromDate(end)),
+    orderBy("datetime", "asc"),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(toMeal);
+}
+
 export async function getMeal(id: string): Promise<Meal | null> {
   const uid = requireUid();
   const snap = await getDoc(doc(mealsCol(uid), id));

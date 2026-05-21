@@ -1,61 +1,116 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BarChart3, Target, Timer } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Target, Timer } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { GoalProgress } from "@/components/dashboard/GoalProgress";
 import { FastStatus } from "@/components/dashboard/FastStatus";
-import { listMealsByDate } from "@/lib/firestore/meals";
+import { Kpis } from "@/components/dashboard/Kpis";
+import { WeeklyCaloriesChart } from "@/components/dashboard/WeeklyCaloriesChart";
+import { WeeklyFastChart } from "@/components/dashboard/WeeklyFastChart";
+import { listMealsInRange } from "@/lib/firestore/meals";
 import { getDailyCalorieGoal } from "@/lib/firestore/user";
-import { getActiveFast } from "@/lib/firestore/fasts";
+import { getActiveFast, listCompletedFastsInRange } from "@/lib/firestore/fasts";
 import { type Fast } from "@/lib/schemas/fast";
+import { endOfDay, formatYMD, lastSevenDays, weekdayShort } from "@/lib/date";
 
-const PLACEHOLDERS = [
-  {
-    icon: BarChart3,
-    title: "Esta semana",
-    description: "Gráficos de calorias e jejum nos últimos 7 dias.",
-    hint: "Em breve · Etapa 9",
-  },
-] as const;
+type WeeklyDay = {
+  date: string;
+  label: string;
+  kcal: number;
+  fastHours: number;
+};
+
+type DashboardData = {
+  goal: number | null;
+  activeFast: Fast | null;
+  consumedToday: number;
+  weeklyData: WeeklyDay[];
+  avgDailyKcal: number;
+  totalFastsThisWeek: number;
+  avgFastMinutes: number;
+};
+
+type State =
+  | { kind: "loading" }
+  | { kind: "error" }
+  | { kind: "ready"; data: DashboardData };
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const [goal, setGoal] = useState<number | null | "loading">("loading");
-  const [consumed, setConsumed] = useState<number | "loading">("loading");
-  const [activeFast, setActiveFast] = useState<Fast | null | "loading">("loading");
+  const [state, setState] = useState<State>({ kind: "loading" });
 
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
+
+    const days = lastSevenDays();
+    const weekStart = days[0];
+    const weekEnd = endOfDay(days[6]);
+    const todayKey = formatYMD(days[6]);
+
     Promise.all([
       getDailyCalorieGoal(),
-      listMealsByDate(new Date()).then((meals) =>
-        meals.reduce((sum, m) => sum + m.calories, 0),
-      ),
       getActiveFast(),
+      listMealsInRange(weekStart, weekEnd),
+      listCompletedFastsInRange(weekStart, weekEnd),
     ])
-      .then(([g, c, f]) => {
+      .then(([goal, activeFast, weekMeals, weekFasts]) => {
         if (cancelled) return;
-        setGoal(g);
-        setConsumed(c);
-        setActiveFast(f);
+
+        const weeklyData: WeeklyDay[] = days.map((day) => {
+          const dayKey = formatYMD(day);
+          const kcal = weekMeals
+            .filter((m) => formatYMD(m.datetime) === dayKey)
+            .reduce((sum, m) => sum + m.calories, 0);
+          const fastMinutes = weekFasts
+            .filter((f) => f.endAt && formatYMD(f.endAt) === dayKey)
+            .reduce((sum, f) => sum + (f.durationMinutes ?? 0), 0);
+          return {
+            date: dayKey,
+            label: weekdayShort(day),
+            kcal,
+            fastHours: Math.round((fastMinutes / 60) * 10) / 10,
+          };
+        });
+
+        const consumedToday =
+          weeklyData.find((d) => d.date === todayKey)?.kcal ?? 0;
+        const totalWeekKcal = weeklyData.reduce((sum, d) => sum + d.kcal, 0);
+        const avgDailyKcal = Math.round(totalWeekKcal / 7);
+        const totalFastsThisWeek = weekFasts.length;
+        const avgFastMinutes =
+          totalFastsThisWeek > 0
+            ? Math.round(
+                weekFasts.reduce((sum, f) => sum + (f.durationMinutes ?? 0), 0) /
+                  totalFastsThisWeek,
+              )
+            : 0;
+
+        setState({
+          kind: "ready",
+          data: {
+            goal,
+            activeFast,
+            consumedToday,
+            weeklyData,
+            avgDailyKcal,
+            totalFastsThisWeek,
+            avgFastMinutes,
+          },
+        });
       })
       .catch((err) => {
         if (cancelled) return;
         console.error(err);
-        setGoal(null);
-        setConsumed(0);
-        setActiveFast(null);
+        setState({ kind: "error" });
       });
+
     return () => {
       cancelled = true;
     };
   }, [user]);
-
-  const goalReady = goal !== "loading" && consumed !== "loading";
-  const fastReady = activeFast !== "loading";
 
   return (
     <div className="space-y-8">
@@ -64,39 +119,42 @@ export default function DashboardPage() {
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
       </header>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {goalReady ? (
-          <GoalProgress consumed={consumed} goal={goal} />
-        ) : (
+      {state.kind === "loading" && (
+        <div className="grid gap-4 sm:grid-cols-2">
           <SkeletonCard icon={Target} title="Meta diária" />
-        )}
-
-        {fastReady ? (
-          <FastStatus fast={activeFast} />
-        ) : (
           <SkeletonCard icon={Timer} title="Jejum" />
-        )}
+        </div>
+      )}
 
-        {PLACEHOLDERS.map(({ icon: Icon, title, description, hint }) => (
-          <Card key={title}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <span className="flex size-9 items-center justify-center rounded-full bg-brand-soft text-brand-foreground">
-                  <Icon className="size-4" />
-                </span>
-                <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  {hint}
-                </span>
-              </div>
-              <CardTitle>{title}</CardTitle>
-              <CardDescription>{description}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-24 rounded-lg border border-dashed border-border bg-secondary/40" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {state.kind === "error" && (
+        <Card>
+          <CardContent>
+            <p className="text-sm text-destructive">
+              Não foi possível carregar o dashboard. Recarregue a página.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {state.kind === "ready" && (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <GoalProgress consumed={state.data.consumedToday} goal={state.data.goal} />
+            <FastStatus fast={state.data.activeFast} />
+          </div>
+
+          <section className="space-y-4">
+            <h2 className="text-xl font-bold tracking-tight">Esta semana</h2>
+            <Kpis
+              avgDailyKcal={state.data.avgDailyKcal}
+              totalFastsThisWeek={state.data.totalFastsThisWeek}
+              avgFastMinutes={state.data.avgFastMinutes}
+            />
+            <WeeklyCaloriesChart data={state.data.weeklyData} goal={state.data.goal} />
+            <WeeklyFastChart data={state.data.weeklyData} />
+          </section>
+        </>
+      )}
     </div>
   );
 }

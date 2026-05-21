@@ -50,3 +50,18 @@ export function formatDurationMinutes(minutes: number): string {
   if (m === 0) return `${h}h`;
   return `${h}h ${m}min`;
 }
+
+export function lastSevenDays(reference: Date = new Date()): Date[] {
+  const days: Date[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(reference);
+    d.setDate(d.getDate() - i);
+    d.setHours(0, 0, 0, 0);
+    days.push(d);
+  }
+  return days;
+}
+
+export function weekdayShort(d: Date): string {
+  return d.toLocaleDateString("pt-BR", { weekday: "short" }).replace(/\.$/, "");
+}
