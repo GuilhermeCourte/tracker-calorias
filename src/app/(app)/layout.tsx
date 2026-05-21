@@ -61,6 +61,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
+      <a
+        href="#conteudo"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:rounded-full focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground focus:shadow-lg"
+      >
+        Pular para o conteúdo
+      </a>
       <header className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur supports-backdrop-filter:bg-card/80">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-6 py-4">
           <Link href="/dashboard" className="flex items-center gap-2">
@@ -101,7 +107,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </nav>
       </header>
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-8">{children}</main>
+      <main id="conteudo" className="mx-auto w-full max-w-5xl flex-1 px-6 py-8">
+        {children}
+      </main>
 
       <footer className="border-t border-border bg-card">
         <div className="mx-auto w-full max-w-5xl px-6 py-6 text-center text-xs text-muted-foreground">

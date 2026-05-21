@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2, UtensilsCrossed } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -126,6 +126,9 @@ export default function RefeicoesPage() {
       {meals && meals.length === 0 && !error && (
         <Card>
           <CardContent className="space-y-3 py-8 text-center">
+            <div className="mx-auto flex size-10 items-center justify-center rounded-full bg-brand-soft text-brand-foreground">
+              <UtensilsCrossed className="size-5" />
+            </div>
             <p className="text-sm text-muted-foreground">
               Nenhuma refeição registrada para esta data.
             </p>
@@ -174,6 +177,7 @@ export default function RefeicoesPage() {
                       size="icon-sm"
                       aria-label={`Excluir ${meal.description}`}
                       onClick={() => setDeleting(meal)}
+                      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                     >
                       <Trash2 className="size-4" />
                     </Button>

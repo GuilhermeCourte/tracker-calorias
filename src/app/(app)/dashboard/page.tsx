@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Target, Timer } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { GoalProgress } from "@/components/dashboard/GoalProgress";
@@ -41,76 +42,73 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const [state, setState] = useState<State>({ kind: "loading" });
 
-  useEffect(() => {
+  const reload = useCallback(async () => {
     if (!user) return;
-    let cancelled = false;
+    setState({ kind: "loading" });
 
     const days = lastSevenDays();
     const weekStart = days[0];
     const weekEnd = endOfDay(days[6]);
     const todayKey = formatYMD(days[6]);
 
-    Promise.all([
-      getDailyCalorieGoal(),
-      getActiveFast(),
-      listMealsInRange(weekStart, weekEnd),
-      listCompletedFastsInRange(weekStart, weekEnd),
-    ])
-      .then(([goal, activeFast, weekMeals, weekFasts]) => {
-        if (cancelled) return;
+    try {
+      const [goal, activeFast, weekMeals, weekFasts] = await Promise.all([
+        getDailyCalorieGoal(),
+        getActiveFast(),
+        listMealsInRange(weekStart, weekEnd),
+        listCompletedFastsInRange(weekStart, weekEnd),
+      ]);
 
-        const weeklyData: WeeklyDay[] = days.map((day) => {
-          const dayKey = formatYMD(day);
-          const kcal = weekMeals
-            .filter((m) => formatYMD(m.datetime) === dayKey)
-            .reduce((sum, m) => sum + m.calories, 0);
-          const fastMinutes = weekFasts
-            .filter((f) => f.endAt && formatYMD(f.endAt) === dayKey)
-            .reduce((sum, f) => sum + (f.durationMinutes ?? 0), 0);
-          return {
-            date: dayKey,
-            label: weekdayShort(day),
-            kcal,
-            fastHours: Math.round((fastMinutes / 60) * 10) / 10,
-          };
-        });
-
-        const consumedToday =
-          weeklyData.find((d) => d.date === todayKey)?.kcal ?? 0;
-        const totalWeekKcal = weeklyData.reduce((sum, d) => sum + d.kcal, 0);
-        const avgDailyKcal = Math.round(totalWeekKcal / 7);
-        const totalFastsThisWeek = weekFasts.length;
-        const avgFastMinutes =
-          totalFastsThisWeek > 0
-            ? Math.round(
-                weekFasts.reduce((sum, f) => sum + (f.durationMinutes ?? 0), 0) /
-                  totalFastsThisWeek,
-              )
-            : 0;
-
-        setState({
-          kind: "ready",
-          data: {
-            goal,
-            activeFast,
-            consumedToday,
-            weeklyData,
-            avgDailyKcal,
-            totalFastsThisWeek,
-            avgFastMinutes,
-          },
-        });
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        console.error(err);
-        setState({ kind: "error" });
+      const weeklyData: WeeklyDay[] = days.map((day) => {
+        const dayKey = formatYMD(day);
+        const kcal = weekMeals
+          .filter((m) => formatYMD(m.datetime) === dayKey)
+          .reduce((sum, m) => sum + m.calories, 0);
+        const fastMinutes = weekFasts
+          .filter((f) => f.endAt && formatYMD(f.endAt) === dayKey)
+          .reduce((sum, f) => sum + (f.durationMinutes ?? 0), 0);
+        return {
+          date: dayKey,
+          label: weekdayShort(day),
+          kcal,
+          fastHours: Math.round((fastMinutes / 60) * 10) / 10,
+        };
       });
 
-    return () => {
-      cancelled = true;
-    };
+      const consumedToday =
+        weeklyData.find((d) => d.date === todayKey)?.kcal ?? 0;
+      const totalWeekKcal = weeklyData.reduce((sum, d) => sum + d.kcal, 0);
+      const avgDailyKcal = Math.round(totalWeekKcal / 7);
+      const totalFastsThisWeek = weekFasts.length;
+      const avgFastMinutes =
+        totalFastsThisWeek > 0
+          ? Math.round(
+              weekFasts.reduce((sum, f) => sum + (f.durationMinutes ?? 0), 0) /
+                totalFastsThisWeek,
+            )
+          : 0;
+
+      setState({
+        kind: "ready",
+        data: {
+          goal,
+          activeFast,
+          consumedToday,
+          weeklyData,
+          avgDailyKcal,
+          totalFastsThisWeek,
+          avgFastMinutes,
+        },
+      });
+    } catch (err) {
+      console.error(err);
+      setState({ kind: "error" });
+    }
   }, [user]);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
 
   return (
     <div className="space-y-8">
@@ -128,10 +126,13 @@ export default function DashboardPage() {
 
       {state.kind === "error" && (
         <Card>
-          <CardContent>
+          <CardContent className="space-y-2">
             <p className="text-sm text-destructive">
-              Não foi possível carregar o dashboard. Recarregue a página.
+              Não foi possível carregar o dashboard.
             </p>
+            <Button variant="outline" size="sm" onClick={reload} className="rounded-full">
+              Tentar novamente
+            </Button>
           </CardContent>
         </Card>
       )}
