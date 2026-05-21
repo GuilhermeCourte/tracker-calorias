@@ -1,0 +1,77 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function isInt(x)  { return x is int; }
+    function isStr(x)  { return x is string; }
+    function isTs(x)   { return x is timestamp; }
+
+    // --- USER ROOT DOC -----------------------------------------------------
+    match /users/{uid} {
+      allow read:   if isOwner(uid);
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid)
+        && (
+          !('dailyCalorieGoal' in request.resource.data)
+          || (
+            isInt(request.resource.data.dailyCalorieGoal)
+            && request.resource.data.dailyCalorieGoal >= 500
+            && request.resource.data.dailyCalorieGoal <= 10000
+          )
+        );
+      allow delete: if false;
+
+      // --- MEALS ----------------------------------------------------------
+      match /meals/{mealId} {
+        allow read:   if isOwner(uid);
+        allow create, update: if isOwner(uid)
+          && isTs(request.resource.data.datetime)
+          && isStr(request.resource.data.description)
+          && request.resource.data.description.size() >= 1
+          && request.resource.data.description.size() <= 200
+          && isInt(request.resource.data.calories)
+          && request.resource.data.calories >= 0
+          && request.resource.data.calories <= 20000
+          && request.resource.data.mealType in ['cafe', 'almoco', 'lanche', 'jantar', 'ceia'];
+        allow delete: if isOwner(uid);
+      }
+
+      // --- FASTS ----------------------------------------------------------
+      match /fasts/{fastId} {
+        allow read:   if isOwner(uid);
+
+        // Creating a fast: endAt must be null and core fields must be valid.
+        allow create: if isOwner(uid)
+          && isTs(request.resource.data.startAt)
+          && request.resource.data.endAt == null
+          && request.resource.data.plannedType in ['16:8', '18:6', '20:4', '24h', 'custom']
+          && isInt(request.resource.data.plannedDurationMinutes)
+          && request.resource.data.plannedDurationMinutes >= 1
+          && request.resource.data.plannedDurationMinutes <= 4320; // 72h em minutos
+
+        // Ending a fast: only allowed if it's still active and immutable fields
+        // stay the same.
+        allow update: if isOwner(uid)
+          && resource.data.endAt == null
+          && isTs(request.resource.data.endAt)
+          && isInt(request.resource.data.durationMinutes)
+          && request.resource.data.durationMinutes >= 0
+          && request.resource.data.startAt == resource.data.startAt
+          && request.resource.data.plannedType == resource.data.plannedType
+          && request.resource.data.plannedDurationMinutes == resource.data.plannedDurationMinutes;
+
+        allow delete: if isOwner(uid);
+      }
+    }
+
+    // --- DEFAULT DENY ------------------------------------------------------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
