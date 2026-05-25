@@ -9,7 +9,7 @@ Trabalho final da disciplina — Senac 2026/1 TSI DSW.
 > agressivas ou ciclos longos de jejum.
 
 🔗 **Aplicação em produção**: <https://caloriasjejum.vercel.app>
-🎥 **Vídeo demo**: <https://www.youtube.com/watch?v=gEfyXs25Bm0>
+🎥 **Vídeo demo**: <https://youtu.be/9t5okXqC4FE>
 
 ---
 
